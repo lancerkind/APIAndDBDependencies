@@ -1,5 +1,3 @@
-package sampleoracleapplication;
-
 import com.intuit.karate.junit5.Karate;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
