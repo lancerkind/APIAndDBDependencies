@@ -2,15 +2,7 @@ package samplespannerapplication.testcontainers;
 
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-import java.sql.Statement;
+import biz.agilenoir.LiquibaseMigrations;
 
 public class ContainerSetupSpanner {
     private static GenericContainer<?> container;
@@ -24,51 +16,12 @@ public class ContainerSetupSpanner {
         }
         container.start();
         started = true;
-        runInitSql("dbspanner/00_init.sql");
+        runLiquibase();
         Runtime.getRuntime().addShutdownHook(new Thread(ContainerSetupSpanner::ensureStopped));
     }
 
-    private static void runInitSql(String classpathResource) {
-        try (Connection conn = DriverManager.getConnection(getJdbcUrl())) {
-            executeSqlScript(conn, classpathResource);
-        } catch (SQLException | IOException e) {
-            throw new RuntimeException("Failed to execute init SQL: " + classpathResource, e);
-        }
-    }
-
-    private static void executeSqlScript(Connection conn, String classpathResource) throws IOException, SQLException {
-        InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(classpathResource);
-        if (is == null) {
-            throw new IOException("Resource not found on classpath: " + classpathResource);
-        }
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String trimmed = line.trim();
-                if (trimmed.isEmpty() || trimmed.startsWith("--")) {
-                    continue;
-                }
-                sb.append(line).append('\n');
-                if (trimmed.endsWith(";")) {
-                    executeStatement(conn, sb.toString());
-                    sb.setLength(0);
-                }
-            }
-            if (sb.length() > 0) {
-                executeStatement(conn, sb.toString());
-            }
-        }
-    }
-
-    private static void executeStatement(Connection conn, String sql) throws SQLException {
-        String toExec = sql.trim();
-        if (toExec.endsWith(";")) {
-            toExec = toExec.substring(0, toExec.length() - 1);
-        }
-        try (Statement st = conn.createStatement()) {
-            st.execute(toExec);
-        }
+    private static void runLiquibase() {
+        new LiquibaseMigrations().run(getJdbcUrl(), "src/main/migrations/dbSpanner/changelog/changelog.xml");
     }
 
     public static synchronized void ensureStopped() {
